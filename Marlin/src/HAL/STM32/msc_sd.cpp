@@ -13,9 +13,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
  */
-#include "../platforms.h"
-
-#ifdef HAL_STM32
+#if defined(ARDUINO_ARCH_STM32) && !defined(STM32GENERIC) && !defined(MAPLE_STM32F1)
 
 #include "../../inc/MarlinConfigPre.h"
 
@@ -57,15 +55,15 @@ public:
     auto sd2card = diskIODriver();
     // single block
     if (blkLen == 1) {
-      hal.watchdog_refresh();
+      watchdog_refresh();
       sd2card->writeBlock(blkAddr, pBuf);
       return true;
     }
 
-    // multi block optimization
+    // multi block optmization
     sd2card->writeStart(blkAddr, blkLen);
     while (blkLen--) {
-      hal.watchdog_refresh();
+      watchdog_refresh();
       sd2card->writeData(pBuf);
       pBuf += BLOCK_SIZE;
     }
@@ -77,15 +75,15 @@ public:
     auto sd2card = diskIODriver();
     // single block
     if (blkLen == 1) {
-      hal.watchdog_refresh();
+      watchdog_refresh();
       sd2card->readBlock(blkAddr, pBuf);
       return true;
     }
 
-    // multi block optimization
+    // multi block optmization
     sd2card->readStart(blkAddr);
     while (blkLen--) {
-      hal.watchdog_refresh();
+      watchdog_refresh();
       sd2card->readData(pBuf);
       pBuf += BLOCK_SIZE;
     }
@@ -127,4 +125,4 @@ void MSC_SD_init() {
 }
 
 #endif // HAS_SD_HOST_DRIVE
-#endif // HAL_STM32
+#endif // ARDUINO_ARCH_STM32 && !STM32GENERIC && !MAPLE_STM32F1

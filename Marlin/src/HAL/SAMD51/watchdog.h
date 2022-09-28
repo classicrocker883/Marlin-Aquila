@@ -1,9 +1,8 @@
 /**
  * Marlin 3D Printer Firmware
- * Copyright (c) 2021 MarlinFirmware [https://github.com/MarlinFirmware/Marlin]
  *
- * Based on Sprinter and grbl.
- * Copyright (c) 2011 Camiel Gubbels / Erik van der Zalm
+ * Copyright (c) 2020 MarlinFirmware [https://github.com/MarlinFirmware/Marlin]
+ * SAMD51 HAL developed by Giuliano Zaro (AKA GMagician)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +20,12 @@
  */
 #pragma once
 
-#include <SPI.h>
+// Initialize watchdog with a 4 second interrupt time
+void watchdog_init();
 
-using MarlinSPI = SPIClass;
+// Reset watchdog. MUST be called at least every 4 seconds after the
+// first watchdog_init or SAMD will go into emergency procedures.
+inline void HAL_watchdog_refresh() {
+  SYNC(WDT->SYNCBUSY.bit.CLEAR);        // Test first if previous is 'ongoing' to save time waiting for command execution
+  WDT->CLEAR.reg = WDT_CLEAR_CLEAR_KEY;
+}

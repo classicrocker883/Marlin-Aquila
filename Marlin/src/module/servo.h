@@ -109,5 +109,5 @@
 
 #endif // HAS_SERVO_ANGLES
 
-extern hal_servo_t servo[NUM_SERVOS];
+extern HAL_SERVO_LIB servo[NUM_SERVOS];
 void servo_init();

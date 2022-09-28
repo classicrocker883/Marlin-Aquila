@@ -19,9 +19,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
  */
-#include "../../platforms.h"
-
-#ifdef HAL_STM32
+#if defined(ARDUINO_ARCH_STM32) && !defined(STM32GENERIC) && !defined(MAPLE_STM32F1)
 
 #include "../../../inc/MarlinConfig.h"
 
@@ -372,9 +370,9 @@ void TFT_LTDC::TransmitDMA(uint32_t MemoryIncrease, uint16_t *Data, uint16_t Cou
     if (MemoryIncrease == DMA_PINC_ENABLE) {
       DrawImage(x_min, y_cur, x_min + width, y_cur + height, Data);
       Data += width * height;
-    }
-    else
+    } else {
       DrawRect(x_min, y_cur, x_min + width, y_cur + height, *Data);
+    }
     y_cur += height;
   }
 
@@ -386,4 +384,4 @@ void TFT_LTDC::TransmitDMA(uint32_t MemoryIncrease, uint16_t *Data, uint16_t Cou
 }
 
 #endif // HAS_LTDC_TFT
-#endif // HAL_STM32
+#endif // ARDUINO_ARCH_STM32 && !STM32GENERIC && !MAPLE_STM32F1

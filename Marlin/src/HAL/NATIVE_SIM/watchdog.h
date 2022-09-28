@@ -21,6 +21,7 @@
  */
 #pragma once
 
-#include <SPI.h>
+#define WDT_TIMEOUT   4000000 // 4 second timeout
 
-using MarlinSPI = SPIClass;
+void watchdog_init();
+void HAL_watchdog_refresh();

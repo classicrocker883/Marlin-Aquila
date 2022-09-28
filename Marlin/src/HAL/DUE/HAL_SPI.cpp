@@ -31,6 +31,8 @@
 
 /**
  * HAL for Arduino Due and compatible (SAM3X8E)
+ *
+ * For ARDUINO_ARCH_SAM
  */
 
 #ifdef ARDUINO_ARCH_SAM
@@ -435,7 +437,7 @@
     } while (--todo);
   }
 
-  // Pointers to generic functions for block transfers
+  // Pointers to generic functions for block tranfers
   static pfnSpiTxBlock spiTxBlock = (pfnSpiTxBlock)spiTxBlockX;
   static pfnSpiRxBlock spiRxBlock = (pfnSpiRxBlock)spiRxBlockX;
 
@@ -592,14 +594,18 @@
       SPI_Configure(SPI0, ID_SPI0, SPI_MR_MSTR | SPI_MR_MODFDIS | SPI_MR_PS);
       SPI_Enable(SPI0);
 
-      SET_OUTPUT(DAC0_SYNC_PIN);
+      SET_OUTPUT(DAC0_SYNC);
       #if HAS_MULTI_EXTRUDER
-        OUT_WRITE(DAC1_SYNC_PIN, HIGH);
+        SET_OUTPUT(DAC1_SYNC);
+        WRITE(DAC1_SYNC, HIGH);
       #endif
-      WRITE(DAC0_SYNC_PIN, HIGH);
-      OUT_WRITE(SPI_EEPROM1_CS_PIN, HIGH);
-      OUT_WRITE(SPI_EEPROM2_CS_PIN, HIGH);
-      OUT_WRITE(SPI_FLASH_CS_PIN, HIGH);
+      SET_OUTPUT(SPI_EEPROM1_CS);
+      SET_OUTPUT(SPI_EEPROM2_CS);
+      SET_OUTPUT(SPI_FLASH_CS);
+      WRITE(DAC0_SYNC, HIGH);
+      WRITE(SPI_EEPROM1_CS, HIGH);
+      WRITE(SPI_EEPROM2_CS, HIGH);
+      WRITE(SPI_FLASH_CS, HIGH);
       WRITE(SD_SS_PIN, HIGH);
 
       OUT_WRITE(SDSS, LOW);

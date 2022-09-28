@@ -1,6 +1,6 @@
 /**
  * Marlin 3D Printer Firmware
- * Copyright (c) 2021 MarlinFirmware [https://github.com/MarlinFirmware/Marlin]
+ * Copyright (c) 2020 MarlinFirmware [https://github.com/MarlinFirmware/Marlin]
  *
  * Based on Sprinter and grbl.
  * Copyright (c) 2011 Camiel Gubbels / Erik van der Zalm
@@ -19,11 +19,22 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
  */
-#pragma once
+#ifdef __MK20DX256__
 
-#define SDIO_D0_PIN   PC8
-#define SDIO_D1_PIN   PC9
-#define SDIO_D2_PIN   PC10
-#define SDIO_D3_PIN   PC11
-#define SDIO_CK_PIN   PC12
-#define SDIO_CMD_PIN  PD2
+#include "../../inc/MarlinConfig.h"
+
+#if ENABLED(USE_WATCHDOG)
+
+#include "watchdog.h"
+
+#define WDT_TIMEOUT_MS TERN(WATCHDOG_DURATION_8S, 8000, 4000) // 4 or 8 second timeout
+
+void watchdog_init() {
+  WDOG_TOVALH = 0;
+  WDOG_TOVALL = WDT_TIMEOUT_MS;
+  WDOG_STCTRLH = WDOG_STCTRLH_WDOGEN;
+}
+
+#endif // USE_WATCHDOG
+
+#endif // __MK20DX256__

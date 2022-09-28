@@ -26,7 +26,7 @@
 
 #include "../../inc/MarlinConfig.h"
 
-MarlinHAL hal;
+//MarlinHAL hal;
 
 #if ENABLED(SOFT_RESET_VIA_SERIAL)
 

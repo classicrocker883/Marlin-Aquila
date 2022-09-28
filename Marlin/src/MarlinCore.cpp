@@ -30,6 +30,10 @@
 
 #include "MarlinCore.h"
 
+#if ENABLED(MARLIN_DEV_MODE)
+  #warning "WARNING! Disable MARLIN_DEV_MODE for the final build!"
+#endif
+
 #include "HAL/shared/Delay.h"
 #include "HAL/shared/esp_wifi.h"
 #include "HAL/shared/cpu_exception/exception_hook.h"
@@ -40,12 +44,17 @@
 #include <math.h>
 
 #include "module/endstops.h"
+#include "core/utility.h"
+
 #include "module/motion.h"
 #include "module/planner.h"
-#include "module/printcounter.h" // PrintCounter or Stopwatch
-#include "module/settings.h"
-#include "module/stepper.h"
+#include "module/endstops.h"
 #include "module/temperature.h"
+#include "module/settings.h"
+#include "module/printcounter.h" // PrintCounter or Stopwatch
+
+#include "module/stepper.h"
+#include "module/stepper/indirection.h"
 
 #include "gcode/gcode.h"
 #include "gcode/parser.h"
@@ -75,6 +84,15 @@
   #elif ENABLED(DWIN_CREALITY_LCD_JYERSUI)
     #include "lcd/e3v2/jyersui/dwin.h"
   #endif
+#endif
+
+#if ENABLED(DWIN_CREALITY_LCD)
+  #include "lcd/dwin/creality_dwin.h"
+  #include "lcd/dwin/rotary_encoder.h"
+#endif
+
+#if ENABLED(EXTENSIBLE_UI)
+  #include "lcd/extui/ui_api.h"
 #endif
 
 #if HAS_ETHERNET
@@ -121,10 +139,6 @@
   #include "feature/bltouch.h"
 #endif
 
-#if ENABLED(BD_SENSOR)
-  #include "feature/bedlevel/bdl/bdl.h"
-#endif
-
 #if ENABLED(POLL_JOG)
   #include "feature/joystick.h"
 #endif
@@ -164,8 +178,6 @@
 
 #if ENABLED(DELTA)
   #include "module/delta.h"
-#elif ENABLED(POLARGRAPH)
-  #include "module/polargraph.h"
 #elif IS_SCARA
   #include "module/scara.h"
 #endif
@@ -212,20 +224,16 @@
 
 #include "module/tool_change.h"
 
-#if HAS_FANCHECK
-  #include "feature/fancheck.h"
-#endif
-
 #if ENABLED(USE_CONTROLLER_FAN)
   #include "feature/controllerfan.h"
 #endif
 
-#if HAS_PRUSA_MMU1
-  #include "feature/mmu/mmu.h"
-#endif
-
 #if HAS_PRUSA_MMU2
   #include "feature/mmu/mmu2.h"
+#endif
+
+#if HAS_L64XX
+  #include "libs/L64XX/L64XX_Marlin.h"
 #endif
 
 #if ENABLED(PASSWORD_FEATURE)
@@ -242,14 +250,6 @@
 
 #if ENABLED(PSU_CONTROL)
   #include "feature/power.h"
-#endif
-
-#if ENABLED(EASYTHREED_UI)
-  #include "feature/easythreed_ui.h"
-#endif
-
-#if ENABLED(MARLIN_TEST_BUILD)
-  #include "tests/marlin_tests.h"
 #endif
 
 PGMSTR(M112_KILL_STR, "M112 Shutdown");
@@ -325,6 +325,48 @@ bool printer_busy() {
   return planner.movesplanned() || printingIsActive();
 }
 
+/*void enable_e_steppers() {
+  #define _ENA_E(N) ENABLE_AXIS_E##N();
+  REPEAT(E_STEPPERS, _ENA_E)
+}
+
+void enable_all_steppers() {
+  TERN_(AUTO_POWER_CONTROL, powerManager.power_on());
+  ENABLE_AXIS_X();
+  ENABLE_AXIS_Y();
+  ENABLE_AXIS_Z();
+  ENABLE_AXIS_I(); // Marlin 6-axis support by DerAndere (https://github.com/DerAndere1/Marlin/wiki)
+  ENABLE_AXIS_J();
+  ENABLE_AXIS_K();
+  enable_e_steppers();
+
+  TERN_(EXTENSIBLE_UI, ExtUI::onSteppersEnabled());
+}
+
+void disable_e_steppers() {
+  #define _DIS_E(N) DISABLE_AXIS_E##N();
+  REPEAT(E_STEPPERS, _DIS_E)
+}
+
+void disable_e_stepper(const uint8_t e) {
+  #define _CASE_DIS_E(N) case N: DISABLE_AXIS_E##N(); break;
+  switch (e) {
+    REPEAT(E_STEPPERS, _CASE_DIS_E)
+  }
+}
+
+void disable_all_steppers() {
+  DISABLE_AXIS_X();
+  DISABLE_AXIS_Y();
+  DISABLE_AXIS_Z();
+  DISABLE_AXIS_I();
+  DISABLE_AXIS_J();
+  DISABLE_AXIS_K();
+  disable_e_steppers();
+
+  TERN_(EXTENSIBLE_UI, ExtUI::onSteppersDisabled());
+}
+*/
 /**
  * A Print Job exists when the timer is running or SD is printing
  */
@@ -783,9 +825,6 @@ void idle(bool no_stepper_sleep/*=false*/) {
     if (++idle_depth > 5) SERIAL_ECHOLNPGM("idle() call depth: ", idle_depth);
   #endif
 
-  // Bed Distance Sensor task
-  TERN_(BD_SENSOR, bdl.process());
-
   // Core Marlin activities
   manage_inactivity(no_stepper_sleep);
 
@@ -808,7 +847,7 @@ void idle(bool no_stepper_sleep/*=false*/) {
   #endif
 
   // Run HAL idle tasks
-  hal.idletask();
+  TERN_(HAL_IDLETASK, HAL_idletask());
 
   // Check network connection
   TERN_(HAS_ETHERNET, ethernet.check());
@@ -840,7 +879,7 @@ void idle(bool no_stepper_sleep/*=false*/) {
   TERN_(HAS_BEEPER, buzzer.tick());
 
   // Handle UI input / draw events
-  TERN(DWIN_CREALITY_LCD, DWIN_Update(), ui.update());
+  ui.update();
 
   // Run i2c Position Encoders
   #if ENABLED(I2C_POSITION_ENCODERS)
@@ -940,18 +979,18 @@ void minkill(const bool steppers_off/*=false*/) {
 
     // Wait for both KILL and ENC to be released
     while (TERN0(HAS_KILL, kill_state()) || TERN0(SOFT_RESET_ON_KILL, ui.button_pressed()))
-      hal.watchdog_refresh();
+      watchdog_refresh();
 
     // Wait for either KILL or ENC to be pressed again
     while (TERN1(HAS_KILL, !kill_state()) && TERN1(SOFT_RESET_ON_KILL, !ui.button_pressed()))
-      hal.watchdog_refresh();
+      watchdog_refresh();
 
     // Reboot the board
-    hal.reboot();
+    HAL_reboot();
 
   #else
 
-    for (;;) hal.watchdog_refresh();  // Wait for RESET button or power-cycle
+    for (;;) watchdog_refresh();  // Wait for RESET button or power-cycle
 
   #endif
 }
@@ -1065,9 +1104,10 @@ inline void tmc_standby_setup() {
  *    • TMC220x Stepper Drivers (Serial)
  *    • PSU control
  *    • Power-loss Recovery
+ *    • L64XX Stepper Drivers (SPI)
  *    • Stepper Driver Reset: DISABLE
  *    • TMC Stepper Drivers (SPI)
- *    • Run hal.init_board() for additional pins setup
+ *    • Run BOARD_INIT if defined
  *    • ESP WiFi
  *  - Get the Reset Reason and report it
  *  - Print startup messages and diagnostics
@@ -1143,10 +1183,6 @@ void setup() {
   #endif
 
   tmc_standby_setup();  // TMC Low Power Standby pins must be set early or they're not usable
-
-  // Check startup - does nothing if bootloader sets MCUSR to 0
-  const byte mcu = hal.get_reset_source();
-  hal.clear_reset_source();
 
   #if ENABLED(MARLIN_DEV_MODE)
     auto log_current_ms = [&](PGM_P const msg) {
@@ -1224,7 +1260,7 @@ void setup() {
 
   TERN_(DYNAMIC_VECTORTABLE, hook_cpu_exceptions()); // If supported, install Marlin exception handlers at runtime
 
-  SETUP_RUN(hal.init());
+  SETUP_RUN(HAL_init());
 
   // Init and disable SPI thermocouples; this is still needed
   #if TEMP_SENSOR_IS_MAX_TC(0) || (TEMP_SENSOR_IS_MAX_TC(REDUNDANT) && REDUNDANT_TEMP_MATCH(SOURCE, E0))
@@ -1266,27 +1302,39 @@ void setup() {
     SETUP_RUN(disableStepperDrivers());
   #endif
 
-  SETUP_RUN(hal.init_board());
+  #if HAS_TMC_SPI
+    #if DISABLED(TMC_USE_SW_SPI)
+      SETUP_RUN(SPI.begin());
+    #endif
+    SETUP_RUN(tmc_init_cs_pins());
+  #endif
+
+  #ifdef BOARD_INIT
+    SETUP_LOG("BOARD_INIT");
+    BOARD_INIT();
+  #endif
 
   SETUP_RUN(esp_wifi_init());
 
-  // Report Reset Reason
-  if (mcu & RST_POWER_ON)  SERIAL_ECHOLNPGM(STR_POWERUP);
-  if (mcu & RST_EXTERNAL)  SERIAL_ECHOLNPGM(STR_EXTERNAL_RESET);
+  // Check startup - does nothing if bootloader sets MCUSR to 0
+  const byte mcu = HAL_get_reset_source();
+  if (mcu & RST_POWER_ON) SERIAL_ECHOLNPGM(STR_POWERUP);
+  if (mcu & RST_EXTERNAL) SERIAL_ECHOLNPGM(STR_EXTERNAL_RESET);
   if (mcu & RST_BROWN_OUT) SERIAL_ECHOLNPGM(STR_BROWNOUT_RESET);
-  if (mcu & RST_WATCHDOG)  SERIAL_ECHOLNPGM(STR_WATCHDOG_RESET);
-  if (mcu & RST_SOFTWARE)  SERIAL_ECHOLNPGM(STR_SOFTWARE_RESET);
+  if (mcu & RST_WATCHDOG) SERIAL_ECHOLNPGM(STR_WATCHDOG_RESET);
+  if (mcu & RST_SOFTWARE) SERIAL_ECHOLNPGM(STR_SOFTWARE_RESET);
+  HAL_clear_reset_source();
 
-  // Identify myself as Marlin x.x.x
   SERIAL_ECHOLNPGM("Marlin " SHORT_BUILD_VERSION);
+  SERIAL_EOL();
   #if defined(STRING_DISTRIBUTION_DATE) && defined(STRING_CONFIG_H_AUTHOR)
     SERIAL_ECHO_MSG(
       " Last Updated: " STRING_DISTRIBUTION_DATE
       " | Author: " STRING_CONFIG_H_AUTHOR
     );
   #endif
-  SERIAL_ECHO_MSG(" Compiled: " __DATE__);
-  SERIAL_ECHO_MSG(STR_FREE_MEMORY, hal.freeMemory(), STR_PLANNER_BUFFER_BYTES, sizeof(block_t) * (BLOCK_BUFFER_SIZE));
+  SERIAL_ECHO_MSG("Compiled: " __DATE__);
+  SERIAL_ECHO_MSG(STR_FREE_MEMORY, freeMemory(), STR_PLANNER_BUFFER_BYTES, sizeof(block_t) * (BLOCK_BUFFER_SIZE));
 
   // Some HAL need precise delay adjustment
   calibrate_delay_loop();
@@ -1315,6 +1363,11 @@ void setup() {
   // (because EEPROM code calls the UI).
 
   SETUP_RUN(ui.init());
+  #if BOTH(HAS_WIRED_LCD, SHOW_BOOTSCREEN)
+    SETUP_RUN(ui.show_bootscreen());
+    const millis_t bootscreen_ms = millis();
+  #endif
+  SETUP_RUN(ui.reset_status());     // Load welcome message early. (Retained if no errors exist.)
 
   #if PIN_EXISTS(SAFE_POWER)
     #if HAS_DRIVER_SAFE_POWER_PROTECT
@@ -1323,6 +1376,10 @@ void setup() {
       SETUP_LOG("SAFE_POWER");
       OUT_WRITE(SAFE_POWER_PIN, HIGH);
     #endif
+  #endif
+
+  #if ENABLED(PROBE_TARE)
+    SETUP_RUN(probe.tare_init());
   #endif
 
   #if BOTH(SDSUPPORT, SDCARD_EEPROM_EMULATION)
@@ -1358,10 +1415,6 @@ void setup() {
   SETUP_RUN(print_job_timer.init());  // Initial setup of print job timer
 
   SETUP_RUN(endstops.init());         // Init endstops and pullups
-
-  #if ENABLED(DELTA) && !HAS_SOFTWARE_ENDSTOPS
-    SETUP_RUN(refresh_delta_clip_start_height()); // Init safe delta height without soft endstops
-  #endif
 
   SETUP_RUN(stepper.init());          // Init stepper. This enables interrupts!
 
@@ -1522,10 +1575,6 @@ void setup() {
     SETUP_RUN(bltouch.init(/*set_voltage=*/true));
   #endif
 
-  #if ENABLED(MAGLEV4)
-    OUT_WRITE(MAGLEV_TRIGGER_PIN, LOW);
-  #endif
-
   #if ENABLED(I2C_POSITION_ENCODERS)
     SETUP_RUN(I2CPEM.init());
   #endif
@@ -1562,7 +1611,7 @@ void setup() {
   #endif
 
   #if ENABLED(USE_WATCHDOG)
-    SETUP_RUN(hal.watchdog_init());   // Reinit watchdog after hal.get_reset_source call
+    SETUP_RUN(watchdog_init());       // Reinit watchdog after HAL_get_reset_source call
   #endif
 
   #if ENABLED(EXTERNAL_CLOSED_LOOP_CONTROLLER)

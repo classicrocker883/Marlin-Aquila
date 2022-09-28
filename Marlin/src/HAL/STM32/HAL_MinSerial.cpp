@@ -20,15 +20,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
  */
-#include "../platforms.h"
-
-#ifdef HAL_STM32
+#if defined(ARDUINO_ARCH_STM32) && !defined(STM32GENERIC) && !defined(MAPLE_STM32F1)
 
 #include "../../inc/MarlinConfigPre.h"
 
 #if ENABLED(POSTMORTEM_DEBUGGING)
 
-#include "../shared/MinSerial.h"
+#include "../shared/HAL_MinSerial.h"
+#include "watchdog.h"
 
 /* Instruction Synchronization Barrier */
 #define isb() __asm__ __volatile__ ("isb" : : : "memory")
@@ -119,12 +118,12 @@ static void TX(char c) {
   #if WITHIN(SERIAL_PORT, 1, 6)
     constexpr uint32_t usart_sr_txe = _BV(7);
     while (!(regs->SR & usart_sr_txe)) {
-      hal.watchdog_refresh();
+      TERN_(USE_WATCHDOG, HAL_watchdog_refresh());
       sw_barrier();
     }
     regs->DR = c;
   #else
-    // Let's hope a mystical guru will fix this, one day by writing interrupt-free USB CDC ACM code (or, at least, by polling the registers since interrupt will be queued but will never trigger)
+    // Let's hope a mystical guru will fix this, one day by writting interrupt-free USB CDC ACM code (or, at least, by polling the registers since interrupt will be queued but will never trigger)
     // For now, it's completely lost to oblivion.
   #endif
 }
@@ -134,7 +133,7 @@ void install_min_serial() {
   HAL_min_serial_out = &TX;
 }
 
-#if NONE(DYNAMIC_VECTORTABLE, STM32F0xx, STM32G0xx) // Cortex M0 can't jump to a symbol that's too far from the current function, so we work around this in exception_arm.cpp
+#if DISABLED(DYNAMIC_VECTORTABLE) && DISABLED(STM32F0xx) // Cortex M0 can't jump to a symbol that's too far from the current function, so we work around this in exception_arm.cpp
 extern "C" {
   __attribute__((naked)) void JumpHandler_ASM() {
     __asm__ __volatile__ (
@@ -150,4 +149,4 @@ extern "C" {
 #endif
 
 #endif // POSTMORTEM_DEBUGGING
-#endif // HAL_STM32
+#endif // ARDUINO_ARCH_STM32

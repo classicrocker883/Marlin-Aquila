@@ -841,10 +841,10 @@ volatile bool Temperature::raw_temps_ready = false;
       }
 
       // Run HAL idle tasks
-      hal.idletask();
+      HAL_idletask();
 
       // Run UI update
-      TERN(DWIN_CREALITY_LCD, DWIN_Update(), ui.update());
+      ui.update();
     }
     wait_for_heatup = false;
 
@@ -1227,10 +1227,10 @@ inline void loud_kill(FSTR_P const lcd_msg, const heater_id_t heater_id) {
   thermalManager.disable_all_heaters();
   #if HAS_BEEPER
     for (uint8_t i = 20; i--;) {
-      hal.watchdog_refresh();
+      watchdog_refresh();
       buzzer.click(25);
       delay(80);
-      hal.watchdog_refresh();
+      watchdog_refresh();
     }
     buzzer.on();
   #endif
@@ -1275,7 +1275,7 @@ void Temperature::_temp_error(const heater_id_t heater_id, FSTR_P const serial_m
   }
 
   disable_all_heaters(); // always disable (even for bogus temp)
-  hal.watchdog_refresh();
+  watchdog_refresh();
 
   #if BOGUS_TEMPERATURE_GRACE_PERIOD
     const millis_t ms = millis();
@@ -1835,7 +1835,7 @@ void Temperature::min_temp_error(const heater_id_t heater_id) {
  *  - Update the heated bed PID output value
  */
 void Temperature::task() {
-  if (marlin_state == MF_INITIALIZING) return hal.watchdog_refresh(); // If Marlin isn't started, at least reset the watchdog!
+  if (marlin_state == MF_INITIALIZING) return watchdog_refresh(); // If Marlin isn't started, at least reset the watchdog!
 
   static bool no_reentry = false;  // Prevent recursion
   if (no_reentry) return;
@@ -2311,7 +2311,7 @@ void Temperature::task() {
  */
 void Temperature::updateTemperaturesFromRawValues() {
 
-  hal.watchdog_refresh(); // Reset because raw_temps_ready was set by the interrupt
+  watchdog_refresh(); // Reset because raw_temps_ready was set by the interrupt
 
   #if TEMP_SENSOR_IS_MAX_TC(0)
     temp_hotend[0].setraw(READ_MAX_TC(0));
@@ -2574,9 +2574,9 @@ void Temperature::init() {
 
   TERN_(HAS_MAXTC_SW_SPI, max_tc_spi.init());
 
-  hal.adc_init();
+  HAL_adc_init();
 
-  TERN_(HAS_TEMP_ADC_0,         hal.adc_enable(TEMP_0_PIN));
+  TERN_(HAS_TEMP_ADC_0,         HAL_ANALOG_SELECT(TEMP_0_PIN));
   TERN_(HAS_TEMP_ADC_1,         hal.adc_enable(TEMP_1_PIN));
   TERN_(HAS_TEMP_ADC_2,         hal.adc_enable(TEMP_2_PIN));
   TERN_(HAS_TEMP_ADC_3,         hal.adc_enable(TEMP_3_PIN));
@@ -2587,7 +2587,7 @@ void Temperature::init() {
   TERN_(HAS_JOY_ADC_X,          hal.adc_enable(JOY_X_PIN));
   TERN_(HAS_JOY_ADC_Y,          hal.adc_enable(JOY_Y_PIN));
   TERN_(HAS_JOY_ADC_Z,          hal.adc_enable(JOY_Z_PIN));
-  TERN_(HAS_TEMP_ADC_BED,       hal.adc_enable(TEMP_BED_PIN));
+  TERN_(HAS_TEMP_ADC_BED,       HAL_ANALOG_SELECT(TEMP_BED_PIN));
   TERN_(HAS_TEMP_ADC_CHAMBER,   hal.adc_enable(TEMP_CHAMBER_PIN));
   TERN_(HAS_TEMP_ADC_PROBE,     hal.adc_enable(TEMP_PROBE_PIN));
   TERN_(HAS_TEMP_ADC_COOLER,    hal.adc_enable(TEMP_COOLER_PIN));
@@ -2602,7 +2602,7 @@ void Temperature::init() {
     SET_INPUT_PULLUP(JOY_EN_PIN);
   #endif
 
-  HAL_timer_start(MF_TIMER_TEMP, TEMP_TIMER_FREQUENCY);
+  HAL_timer_start(TEMP_TIMER_NUM, TEMP_TIMER_FREQUENCY);
   ENABLE_TEMPERATURE_INTERRUPT();
 
   #if HAS_AUTO_FAN_0
@@ -3226,11 +3226,11 @@ void Temperature::readings_ready() {
  *  - Call planner.isr to count down its "ignore" time
  */
 HAL_TEMP_TIMER_ISR() {
-  HAL_timer_isr_prologue(MF_TIMER_TEMP);
+  HAL_timer_isr_prologue(TEMP_TIMER_NUM);
 
   Temperature::isr();
 
-  HAL_timer_isr_epilogue(MF_TIMER_TEMP);
+  HAL_timer_isr_epilogue(TEMP_TIMER_NUM);
 }
 
 #if ENABLED(SLOW_PWM_HEATERS) && !defined(MIN_STATE_TIME)
@@ -3594,8 +3594,8 @@ void Temperature::isr() {
    * This gives each ADC 0.9765ms to charge up.
    */
   #define ACCUMULATE_ADC(obj) do{ \
-    if (!hal.adc_ready()) next_sensor_state = adc_sensor_state; \
-    else obj.sample(hal.adc_value()); \
+    if (!HAL_ADC_READY()) next_sensor_state = adc_sensor_state; \
+    else obj.sample(HAL_READ_ADC()); \
   }while(0)
 
   ADCSensorState next_sensor_state = adc_sensor_state < SensorsReady ? (ADCSensorState)(int(adc_sensor_state) + 1) : StartSampling;
@@ -3632,12 +3632,12 @@ void Temperature::isr() {
       break;
 
     #if HAS_TEMP_ADC_0
-      case PrepareTemp_0: hal.adc_start(TEMP_0_PIN); break;
+      case PrepareTemp_0: HAL_START_ADC(TEMP_0_PIN); break;
       case MeasureTemp_0: ACCUMULATE_ADC(temp_hotend[0]); break;
     #endif
 
     #if HAS_TEMP_ADC_BED
-      case PrepareTemp_BED: hal.adc_start(TEMP_BED_PIN); break;
+      case PrepareTemp_BED: HAL_START_ADC(TEMP_BED_PIN); break;
       case MeasureTemp_BED: ACCUMULATE_ADC(temp_bed); break;
     #endif
 

@@ -4,16 +4,15 @@
 #  Windows: bossac.exe
 #  Other: leave unchanged
 #
-import pioutil
-if pioutil.is_pio_build():
-	import platform
-	current_OS = platform.system()
 
-	if current_OS == 'Windows':
+import platform
+current_OS = platform.system()
 
-		Import("env")
+if current_OS == 'Windows':
 
-		# Use bossac.exe on Windows
-		env.Replace(
-			UPLOADCMD="bossac --info --unlock --write --verify --reset --erase -U false --boot $SOURCE"
-		)
+	Import("env")
+
+	# Use bossac.exe on Windows
+	env.Replace(
+	    UPLOADCMD="bossac --info --unlock --write --verify --reset --erase -U false --boot $SOURCE"
+	)

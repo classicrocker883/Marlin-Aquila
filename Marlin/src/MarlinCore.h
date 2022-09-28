@@ -23,6 +23,10 @@
 
 #include "inc/MarlinConfig.h"
 
+#ifdef DEBUG_GCODE_PARSER
+  #include "gcode/parser.h"
+#endif
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

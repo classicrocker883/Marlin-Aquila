@@ -40,13 +40,17 @@
 #define hal_timer_t uint32_t
 #define HAL_TIMER_TYPE_MAX UINT16_MAX
 
-// Marlin timer_instance[] content (unrelated to timer selection)
-#define MF_TIMER_STEP       0  // Timer Index for Stepper
-#define MF_TIMER_TEMP       1  // Timer Index for Temperature
-#define MF_TIMER_PULSE      MF_TIMER_STEP
+#define NUM_HARDWARE_TIMERS 2
 
-#define TIMER_INDEX_(T) TIMER##T##_INDEX  // TIMER#_INDEX enums (timer_index_t) depend on TIM#_BASE defines.
-#define TIMER_INDEX(T) TIMER_INDEX_(T)    // Convert Timer ID to HardwareTimer_Handle index.
+#ifndef STEP_TIMER_NUM
+  #define STEP_TIMER_NUM        0  // Timer Index for Stepper
+#endif
+#ifndef PULSE_TIMER_NUM
+  #define PULSE_TIMER_NUM       STEP_TIMER_NUM
+#endif
+#ifndef TEMP_TIMER_NUM
+  #define TEMP_TIMER_NUM        1  // Timer Index for Temperature
+#endif
 
 #define TEMP_TIMER_FREQUENCY 1000   // Temperature::isr() is expected to be called at around 1kHz
 
@@ -60,12 +64,12 @@ extern uint32_t GetStepperTimerClkFreq();
 #define PULSE_TIMER_PRESCALE STEPPER_TIMER_PRESCALE
 #define PULSE_TIMER_TICKS_PER_US STEPPER_TIMER_TICKS_PER_US
 
-#define ENABLE_STEPPER_DRIVER_INTERRUPT() HAL_timer_enable_interrupt(MF_TIMER_STEP)
-#define DISABLE_STEPPER_DRIVER_INTERRUPT() HAL_timer_disable_interrupt(MF_TIMER_STEP)
-#define STEPPER_ISR_ENABLED() HAL_timer_interrupt_enabled(MF_TIMER_STEP)
+#define ENABLE_STEPPER_DRIVER_INTERRUPT() HAL_timer_enable_interrupt(STEP_TIMER_NUM)
+#define DISABLE_STEPPER_DRIVER_INTERRUPT() HAL_timer_disable_interrupt(STEP_TIMER_NUM)
+#define STEPPER_ISR_ENABLED() HAL_timer_interrupt_enabled(STEP_TIMER_NUM)
 
-#define ENABLE_TEMPERATURE_INTERRUPT() HAL_timer_enable_interrupt(MF_TIMER_TEMP)
-#define DISABLE_TEMPERATURE_INTERRUPT() HAL_timer_disable_interrupt(MF_TIMER_TEMP)
+#define ENABLE_TEMPERATURE_INTERRUPT() HAL_timer_enable_interrupt(TEMP_TIMER_NUM)
+#define DISABLE_TEMPERATURE_INTERRUPT() HAL_timer_disable_interrupt(TEMP_TIMER_NUM)
 
 extern void Step_Handler();
 extern void Temp_Handler();
@@ -116,5 +120,5 @@ FORCE_INLINE static void HAL_timer_set_compare(const uint8_t timer_num, const ha
   }
 }
 
-#define HAL_timer_isr_prologue(T) NOOP
-#define HAL_timer_isr_epilogue(T) NOOP
+#define HAL_timer_isr_prologue(TIMER_NUM)
+#define HAL_timer_isr_epilogue(TIMER_NUM)
